@@ -10,7 +10,7 @@ int block_size[MAX_BLOCKS];
 int block_free[MAX_BLOCKS];
 int block_count = 0;
 
-void heap_init(void)
+void heap_init()
 {
 	block_offset[0] = 0;
 	block_size[0] = HEAP_SIZE;
@@ -19,7 +19,7 @@ void heap_init(void)
 }
 
 // 인접한 빈 블록들을 합쳐서 외부 단편화를 줄인다.
-void coalesce(void)
+void coalesce()
 {
 	int merged = 1;
 
@@ -33,7 +33,7 @@ void coalesce(void)
 
 			if (block_free[i] == 1 && block_free[i + 1] == 1 && end_of_current == block_offset[i + 1])
 			{
-				block_size[i] = block_size[i] + block_size[i + 1];
+				block_size[i] += block_size[i + 1];
 
 				// i+1 블록을 삭제하고 뒤 블록들을 한 칸씩 앞으로 당긴다.
 				for (int j = i + 1; j < block_count - 1; j++)
@@ -42,18 +42,18 @@ void coalesce(void)
 					block_size[j] = block_size[j + 1];
 					block_free[j] = block_free[j + 1];
 				}
-				block_count = block_count - 1;
+				block_count -= 1;
 				merged = 1;
 			}
 			else
 			{
-				i = i + 1;
+				i += 1;
 			}
 		}
 	}
 }
 
-// first-fit: size 이상인 첫 빈 블록을 통째로 내어준다 (분할하지 않음)
+// first-fit: size 이상인 첫 빈 블록을 찾아, 필요한 만큼만 잘라서 내어준다 (분할)
 char *my_malloc(int size)
 {
 	if (size <= 0) return NULL;
@@ -63,6 +63,25 @@ char *my_malloc(int size)
 	{
 		if (block_free[i] == 1 && block_size[i] >= size)
 		{
+			// 남는 공간이 있고 블록 배열에 여유가 있으면 뒤쪽을 새 빈 블록으로 분할한다.
+			if (block_size[i] > size && block_count < MAX_BLOCKS)
+			{
+				// i+1 자리를 비우기 위해 뒤 블록들을 한 칸씩 뒤로 민다.
+				for (int j = block_count; j > i + 1; j--)
+				{
+					block_offset[j] = block_offset[j - 1];
+					block_size[j] = block_size[j - 1];
+					block_free[j] = block_free[j - 1];
+				}
+
+				block_offset[i + 1] = block_offset[i] + size;
+				block_size[i + 1] = block_size[i] - size;
+				block_free[i + 1] = 1;
+
+				block_size[i] = size;
+				block_count += 1;
+			}
+
 			block_free[i] = 0;
 			return heap + block_offset[i];
 		}
@@ -86,14 +105,14 @@ void my_free(char *ptr)
 		}
 		else
 		{
-			i = i + 1;
+			i += 1;
 		}
 	}
 
 	coalesce();
 }
 
-void heap_dump(void)
+void heap_dump()
 {
 	printf("==== 힙 상태 ====\n");
 
@@ -113,7 +132,7 @@ void heap_dump(void)
 	printf("=================\n\n");
 }
 
-void heap_stats(void)
+void heap_stats()
 {
 	int free_count = 0;
 	int used_count = 0;
@@ -123,7 +142,7 @@ void heap_stats(void)
 	{
 		if (block_free[i] == 1)
 		{
-			free_count = free_count + 1;
+			free_count += 1;
 			if (block_size[i] > largest_free)
 			{
 				largest_free = block_size[i];
@@ -131,7 +150,7 @@ void heap_stats(void)
 		}
 		else
 		{
-			used_count = used_count + 1;
+			used_count += 1;
 		}
 	}
 	printf("[통계] 빈 블록 %d개 | 사용 블록 %d개 | 가장 큰 빈 블록 %d바이트\n\n",
@@ -139,7 +158,7 @@ void heap_stats(void)
 }
 
 int main()
-{ 
+{
 	char *ptrs[MAX_BLOCKS] = {0};
 
 	printf("명령어: m <slot> <size> (할당) / f <slot> (해제) / d (덤프) / s (통계) / r (힙 초기화) / c (화면 지우기) / q (종료)\n\n");
